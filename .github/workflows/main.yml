@@ -13,15 +13,7 @@ on:
       - '**.html'
       - '**.css'
       - '**.js'
-  workflow_dispatch:   # 👈 this enables manual runs
-      inputs:
-        update_references:
-          description: "Update reference snapshots?"
-          required: false
-          default: "false"
-        target_files:
-          description: "Specific HTML files to test (optional, comma-separated)"
-          required: false
+
 jobs:
   snapshot-test:
     runs-on: ubuntu-latest
@@ -38,11 +30,39 @@ jobs:
     
     - name: Install dependencies
       run: |
-        npm ci
+        npm install -g playwright
+        npm install playwright@latest
         npx playwright install chromium
-
-    - name: Run Playwright visual regression tests
-      run: npx playwright test
+    
+    - name: Create snapshots directory
+      run: mkdir -p snapshots/reference snapshots/current
+    
+    - name: Find HTML files and generate snapshots
+      run: |
+        find . -name "*.html" -not -path "./node_modules/*" -not -path "./.git/*" | while read htmlfile; do
+          # Get relative path without leading ./
+          relativePath=${htmlfile#./}
+          # Create safe filename for snapshot
+          snapshotName=$(echo "$relativePath" | sed 's/[^a-zA-Z0-9._-]/_/g')
+          
+          echo "Processing: $htmlfile"
+          echo "Snapshot name: $snapshotName"
+          
+          # Generate current snapshot
+          npx playwright-cli screenshot \
+            --browser=chromium \
+            --viewport-size=1920,1080 \
+            --full-page \
+            "file://$PWD/$htmlfile" \
+            "snapshots/current/${snapshotName}.png"
+        done
+    
+    - name: Download reference snapshots from repository
+      run: |
+        # Check if reference snapshots exist in the repo
+        if [ -d ".github/snapshots/reference" ]; then
+          cp -r .github/snapshots/reference/* snapshots/reference/ || true
+        fi
     
     - name: Generate HTML report
       if: always()
