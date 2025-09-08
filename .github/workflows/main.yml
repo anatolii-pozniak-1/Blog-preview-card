@@ -13,7 +13,15 @@ on:
       - '**.html'
       - '**.css'
       - '**.js'
-
+  workflow_dispatch:   # 👈 this enables manual runs
+      inputs:
+        update_references:
+          description: "Update reference snapshots?"
+          required: false
+          default: "false"
+        target_files:
+          description: "Specific HTML files to test (optional, comma-separated)"
+          required: false
 jobs:
   snapshot-test:
     runs-on: ubuntu-latest
