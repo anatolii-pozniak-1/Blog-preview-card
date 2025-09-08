@@ -22,7 +22,7 @@ on:
         target_files:
           description: "Specific HTML files to test (optional, comma-separated)"
           required: false
-            
+
 jobs:
   snapshot-test:
     runs-on: ubuntu-latest
@@ -58,7 +58,7 @@ jobs:
           echo "Snapshot name: $snapshotName"
           
           # Generate current snapshot
-          npx playwright-cli screenshot \
+          npx playwright screenshot \
             --browser=chromium \
             --viewport-size=1920,1080 \
             --full-page \
