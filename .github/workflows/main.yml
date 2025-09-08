@@ -49,7 +49,7 @@ jobs:
           echo "Snapshot name: $snapshotName"
           
           # Generate current snapshot
-          npx playwright-cli screenshot \
+          npx playwright screenshot \
             --browser=chromium \
             --viewport-size=1920,1080 \
             --full-page \
