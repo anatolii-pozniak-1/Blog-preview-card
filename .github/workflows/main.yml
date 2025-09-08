@@ -38,7 +38,7 @@ jobs:
 
     - name: Compare with reference.png using pixelmatch
       run: |
-        node compare-images.js \
+        node .github/scripts/compare-images.js \
           ".github/snapshots/reference.png" \
           "snapshots/current/current.png" \
           "snapshots/diff/diff.png" \
@@ -53,7 +53,7 @@ jobs:
     - name: Generate HTML report
       if: always()
       run: |
-        node generate-report.js \
+        node .github/scripts/generate-report.js \
           snapshots/has_changes.txt \
           snapshots/current/current.png \
           .github/snapshots/reference.png \
