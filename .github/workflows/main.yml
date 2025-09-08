@@ -1,9 +1,6 @@
 name: HTML/CSS Snapshot Testing
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:   # 👈 this enables manual runs
       inputs:
         update_references:
@@ -49,10 +46,10 @@ jobs:
 
     - name: Compare with reference.png using pixelmatch
       run: |
-        node -e '
-        const fs = require("fs");
-        const pixelmatch = require("pixelmatch");
-        const PNG = require("pngjs").PNG;
+        node --input-type=module -e '
+        import fs from "fs";
+        import pixelmatch from "pixelmatch";
+        import { PNG } from "pngjs";
         const img1 = PNG.sync.read(fs.readFileSync(".github/snapshots/reference.png"));
         const img2 = PNG.sync.read(fs.readFileSync("snapshots/current/current.png"));
         const { width, height } = img1;
