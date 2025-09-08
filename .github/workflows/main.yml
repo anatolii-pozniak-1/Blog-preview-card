@@ -1,27 +1,232 @@
-name: UI Visual Test
+name: HTML/CSS Snapshot Testing
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
+    paths:
+      - '**.html'
+      - '**.css'
+      - '**.js'
   pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**.html'
+      - '**.css'
+      - '**.js'
 
 jobs:
-  test-ui:
+  snapshot-test:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - run: npm ci
-
-      - run: npx playwright install --with-deps chromium
-
-      - name: Start static server
-        run: npx http-server . -p 8080 &
-
-      - name: Run Playwright tests
-        run: npx playwright test
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm install -g playwright
+        npm install playwright@latest
+        npx playwright install chromium
+    
+    - name: Create snapshots directory
+      run: mkdir -p snapshots/reference snapshots/current
+    
+    - name: Find HTML files and generate snapshots
+      run: |
+        find . -name "*.html" -not -path "./node_modules/*" -not -path "./.git/*" | while read htmlfile; do
+          # Get relative path without leading ./
+          relativePath=${htmlfile#./}
+          # Create safe filename for snapshot
+          snapshotName=$(echo "$relativePath" | sed 's/[^a-zA-Z0-9._-]/_/g')
+          
+          echo "Processing: $htmlfile"
+          echo "Snapshot name: $snapshotName"
+          
+          # Generate current snapshot
+          npx playwright-cli screenshot \
+            --browser=chromium \
+            --viewport-size=1920,1080 \
+            --full-page \
+            "file://$PWD/$htmlfile" \
+            "snapshots/current/${snapshotName}.png"
+        done
+    
+    - name: Download reference snapshots from repository
+      run: |
+        # Check if reference snapshots exist in the repo
+        if [ -d ".github/snapshots/reference" ]; then
+          cp -r .github/snapshots/reference/* snapshots/reference/ || true
+        fi
+    
+    - name: Compare snapshots
+      id: compare
+      run: |
+        hasChanges=false
+        mkdir -p snapshots/diff
+        
+        for currentSnapshot in snapshots/current/*.png; do
+          filename=$(basename "$currentSnapshot")
+          referenceSnapshot="snapshots/reference/$filename"
+          diffSnapshot="snapshots/diff/$filename"
+          
+          if [ -f "$referenceSnapshot" ]; then
+            # Compare using ImageMagick
+            if ! compare -metric AE -fuzz 5% "$referenceSnapshot" "$currentSnapshot" "$diffSnapshot" 2>/dev/null; then
+              echo "Visual difference detected in: $filename"
+              hasChanges=true
+            else
+              echo "No visual changes in: $filename"
+              rm -f "$diffSnapshot" # Remove diff if no changes
+            fi
+          else
+            echo "New snapshot created: $filename"
+            hasChanges=true
+            # Copy current as reference for new files
+            cp "$currentSnapshot" "snapshots/reference/$filename"
+          fi
+        done
+        
+        echo "has_changes=$hasChanges" >> $GITHUB_OUTPUT
+    
+    - name: Install ImageMagick for comparison
+      run: sudo apt-get update && sudo apt-get install -y imagemagick
+    
+    - name: Generate HTML report
+      if: always()
+      run: |
+        cat > snapshots/report.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Snapshot Test Report</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                .comparison { border: 1px solid #ccc; margin: 20px 0; padding: 20px; }
+                .images { display: flex; gap: 20px; flex-wrap: wrap; }
+                .image-container { flex: 1; min-width: 300px; }
+                .image-container img { max-width: 100%; height: auto; border: 1px solid #ddd; }
+                .status-new { background-color: #e8f5e8; }
+                .status-changed { background-color: #fff3cd; }
+                .status-unchanged { background-color: #f8f9fa; }
+                h1 { color: #333; }
+                h2 { color: #666; }
+            </style>
+        </head>
+        <body>
+            <h1>HTML/CSS Snapshot Test Report</h1>
+            <p>Generated on: $(date)</p>
+        EOF
+        
+        for currentSnapshot in snapshots/current/*.png; do
+          filename=$(basename "$currentSnapshot")
+          referenceSnapshot="snapshots/reference/$filename"
+          diffSnapshot="snapshots/diff/$filename"
+          
+          if [ ! -f "$referenceSnapshot" ]; then
+            status="status-new"
+            statusText="NEW"
+          elif [ -f "$diffSnapshot" ]; then
+            status="status-changed"
+            statusText="CHANGED"
+          else
+            status="status-unchanged"
+            statusText="UNCHANGED"
+          fi
+          
+          cat >> snapshots/report.html << EOF
+            <div class="comparison $status">
+                <h2>$filename - $statusText</h2>
+                <div class="images">
+                    <div class="image-container">
+                        <h3>Current</h3>
+                        <img src="current/$filename" alt="Current snapshot">
+                    </div>
+        EOF
+          
+          if [ -f "$referenceSnapshot" ]; then
+            cat >> snapshots/report.html << EOF
+                    <div class="image-container">
+                        <h3>Reference</h3>
+                        <img src="reference/$filename" alt="Reference snapshot">
+                    </div>
+        EOF
+          fi
+          
+          if [ -f "$diffSnapshot" ]; then
+            cat >> snapshots/report.html << EOF
+                    <div class="image-container">
+                        <h3>Difference</h3>
+                        <img src="diff/$filename" alt="Difference">
+                    </div>
+        EOF
+          fi
+          
+          echo "                </div>" >> snapshots/report.html
+          echo "            </div>" >> snapshots/report.html
+        done
+        
+        echo "        </body></html>" >> snapshots/report.html
+    
+    - name: Upload snapshots as artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: snapshot-test-results
+        path: snapshots/
+        retention-days: 30
+    
+    - name: Update reference snapshots on main branch
+      if: github.ref == 'refs/heads/main' && steps.compare.outputs.has_changes == 'true'
+      run: |
+        # Create or update reference snapshots directory in repo
+        mkdir -p .github/snapshots/reference
+        cp snapshots/current/* .github/snapshots/reference/
+        
+        # Commit updated reference snapshots
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .github/snapshots/reference/
+        git commit -m "Update reference snapshots [skip ci]" || exit 0
+        git push
+    
+    - name: Comment on PR with results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          const hasChanges = '${{ steps.compare.outputs.has_changes }}' === 'true';
+          
+          let comment = '## 📸 Snapshot Test Results\n\n';
+          
+          if (hasChanges) {
+            comment += '⚠️ **Visual changes detected!**\n\n';
+            comment += 'Please review the snapshot differences in the [artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).\n\n';
+          } else {
+            comment += '✅ **No visual changes detected.**\n\n';
+            comment += 'All snapshots match the reference images.\n\n';
+          }
+          
+          comment += 'Download the full report from the workflow artifacts to see detailed comparisons.';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+    
+    - name: Fail if visual changes on PR
+      if: github.event_name == 'pull_request' && steps.compare.outputs.has_changes == 'true'
+      run: |
+        echo "Visual changes detected in PR. Please review the snapshots."
+        echo "If changes are intentional, merge to main to update reference snapshots."
+        exit 1
