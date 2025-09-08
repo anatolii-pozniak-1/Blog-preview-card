@@ -66,64 +66,70 @@ jobs:
       run: |
         echo "has_changes=$(cat snapshots/has_changes.txt)" >> $GITHUB_OUTPUT
     
-
-  # - name: Generate HTML report
-  #   if: always()
-  #   run: |
-  #   cat > snapshots/report.html << 'EOF'
-  #   <!DOCTYPE html>
-  #   <html>
-  #   <head>
-  #     <title>Snapshot Test Report</title>
-  #     <style>
-  #       body { font-family: Arial, sans-serif; margin: 20px; }
-  #       .comparison { border: 1px solid #ccc; margin: 20px 0; padding: 20px; }
-  #       .images { display: flex; gap: 20px; flex-wrap: wrap; }
-  #       .image-container { flex: 1; min-width: 300px; }
-  #       .image-container img { max-width: 100%; height: auto; border: 1px solid #ddd; }
-  #       .status-changed { background-color: #fff3cd; }
-  #       .status-unchanged { background-color: #f8f9fa; }
-  #       h1 { color: #333; }
-  #       h2 { color: #666; }
-  #     </style>
-  #   </head>
-  #   <body>
-  #     <h1>HTML/CSS Snapshot Test Report</h1>
-  #     <p>Generated on: $(date)</p>
-  #     <div class="comparison $(cat snapshots/has_changes.txt | grep -q true && echo status-changed || echo status-unchanged)">
-  #       <h2>index.html - $(cat snapshots/has_changes.txt | grep -q true && echo CHANGED || echo UNCHANGED)</h2>
-  #       <div class="images">
-  #         <div class="image-container">
-  #           <h3>Current</h3>
-  #           <img src="current/current.png" alt="Current snapshot">
-  #         </div>
-  #         <div class="image-container">
-  #           <h3>Reference</h3>
-  #           <img src="../../.github/snapshots/reference.png" alt="Reference snapshot">
-  #         </div>
-  #         <div class="image-container">
-  #           <h3>Difference</h3>
-  #           <img src="diff/diff.png" alt="Difference">
-  #         </div>
-  #       </div>
-  #     </div>
-  #   </body></html>
-  #   EOF
-    
-  #   - name: Display manual run summary
-  #     if: github.event_name == 'workflow_dispatch'
-  #     run: |
-  #       echo "## Manual Snapshot Test Summary"
-  #       echo "- Triggered by: ${{ github.actor }}"
-  #       echo "- Viewport size: ${{ env.VIEWPORT_SIZE }}"
-  #       echo "- Update references: ${{ github.event.inputs.update_references }}"
-  #       echo "- Target files: ${{ github.event.inputs.target_files || 'All HTML files' }}"
-  #       echo "- Has changes: ${{ steps.compare.outputs.has_changes }}"
-    
-  #   - name: Upload snapshots as artifacts
-  #     uses: actions/upload-artifact@v4
-  #     if: always()
-  #     with:
-  #       name: snapshot-test-results
-  #       path: snapshots/
-  #       retention-days: 30
+    - name: Generate HTML report
+      if: always()
+      run: |
+        if grep -q true snapshots/has_changes.txt; then
+          status_class="status-changed"
+          status_text="CHANGED"
+        else
+          status_class="status-unchanged"
+          status_text="UNCHANGED"
+        fi
+        cat > snapshots/report.html <<EOF
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Snapshot Test Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .comparison { border: 1px solid #ccc; margin: 20px 0; padding: 20px; }
+            .images { display: flex; gap: 20px; flex-wrap: wrap; }
+            .image-container { flex: 1; min-width: 300px; }
+            .image-container img { max-width: 100%; height: auto; border: 1px solid #ddd; }
+            .status-changed { background-color: #fff3cd; }
+            .status-unchanged { background-color: #f8f9fa; }
+            h1 { color: #333; }
+            h2 { color: #666; }
+          </style>
+        </head>
+        <body>
+          <h1>HTML/CSS Snapshot Test Report</h1>
+          <p>Generated on: $(date)</p>
+          <div class="comparison \\${status_class}">
+            <h2>index.html - \\${status_text}</h2>
+            <div class="images">
+              <div class="image-container">
+                <h3>Current</h3>
+                <img src="current/current.png" alt="Current snapshot">
+              </div>
+              <div class="image-container">
+                <h3>Reference</h3>
+                <img src="../../.github/snapshots/reference.png" alt="Reference snapshot">
+              </div>
+              <div class="image-container">
+                <h3>Difference</h3>
+                <img src="diff/diff.png" alt="Difference">
+              </div>
+            </div>
+          </div>
+        </body></html>
+        EOF
+      
+      # - name: Display manual run summary
+      #   if: github.event_name == 'workflow_dispatch'
+      #   run: |
+      #     echo "## Manual Snapshot Test Summary"
+      #     echo "- Triggered by: ${{ github.actor }}"
+      #     echo "- Viewport size: ${{ env.VIEWPORT_SIZE }}"
+      #     echo "- Update references: ${{ github.event.inputs.update_references }}"
+      #     echo "- Target files: ${{ github.event.inputs.target_files || 'All HTML files' }}"
+      #     echo "- Has changes: ${{ steps.compare.outputs.has_changes }}"
+      
+    - name: Upload snapshots as artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: snapshot-test-results
+        path: snapshots/
+        retention-days: 30
