@@ -56,9 +56,11 @@ jobs:
         const diff = new PNG({ width, height });
         const mismatches = pixelmatch(img1.data, img2.data, diff.data, width, height, { threshold: 0.1 });
         fs.writeFileSync("snapshots/diff/diff.png", PNG.sync.write(diff));
-        const hasChanges = mismatches > 0;
+        const totalPixels = width * height;
+        const percentMatch = 1 - mismatches / totalPixels;
+        const hasChanges = percentMatch < 0.8; // true if less than 80% match
         fs.writeFileSync("snapshots/has_changes.txt", hasChanges ? "true" : "false");
-        console.log(`Pixelmatch: ${mismatches} mismatches`);
+        console.log(`Pixelmatch: ${mismatches} mismatches, match: ${(percentMatch*100).toFixed(2)}%`);
         '
 
     - name: Set has_changes output
