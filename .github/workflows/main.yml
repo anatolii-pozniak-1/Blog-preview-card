@@ -1,6 +1,9 @@
 name: HTML/CSS Snapshot Testing
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:   # 👈 this enables manual runs
       inputs:
         update_references:
