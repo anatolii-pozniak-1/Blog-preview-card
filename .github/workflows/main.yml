@@ -1,3 +1,8 @@
+    - name: Upload Playwright test results
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-test-results
+        path: test-results/
 name: HTML/CSS Snapshot Testing
 
 on:
@@ -38,72 +43,11 @@ jobs:
     
     - name: Install dependencies
       run: |
-        npm install -g playwright
-        npm install playwright@latest
+        npm ci
         npx playwright install chromium
-    
-    - name: Create snapshots directory
-      run: mkdir -p snapshots/reference snapshots/current
-    
-    - name: Find HTML files and generate snapshots
-      run: |
-        find . -name "*.html" -not -path "./node_modules/*" -not -path "./.git/*" | while read htmlfile; do
-          # Get relative path without leading ./
-          relativePath=${htmlfile#./}
-          # Create safe filename for snapshot
-          snapshotName=$(echo "$relativePath" | sed 's/[^a-zA-Z0-9._-]/_/g')
-          
-          echo "Processing: $htmlfile"
-          echo "Snapshot name: $snapshotName"
-          
-          # Generate current snapshot
-          npx playwright screenshot \
-            --browser=chromium \
-            --viewport-size=1920,1080 \
-            --full-page \
-            "file://$PWD/$htmlfile" \
-            "snapshots/current/${snapshotName}.png"
-        done
-    
-    - name: Download reference snapshots from repository
-      run: |
-        # Check if reference snapshots exist in the repo
-        if [ -d ".github/snapshots/reference" ]; then
-          cp -r .github/snapshots/reference/* snapshots/reference/ || true
-        fi
-    
-    - name: Compare snapshots
-      id: compare
-      run: |
-        hasChanges=false
-        mkdir -p snapshots/diff
-        
-        for currentSnapshot in snapshots/current/*.png; do
-          filename=$(basename "$currentSnapshot")
-          referenceSnapshot="snapshots/reference/$filename"
-          diffSnapshot="snapshots/diff/$filename"
-          
-          if [ -f "$referenceSnapshot" ]; then
-            # Compare using ImageMagick
-            if ! compare -metric AE -fuzz 5% "$referenceSnapshot" "$currentSnapshot" "$diffSnapshot" 2>/dev/null; then
-              echo "Visual difference detected in: $filename"
-              hasChanges=true
-            else
-              echo "No visual changes in: $filename"
-              rm -f "$diffSnapshot" # Remove diff if no changes
-            fi
-          else
-            echo "New snapshot created: $filename"
-            hasChanges=true
-            # Copy current as reference for new files
-            cp "$currentSnapshot" "snapshots/reference/$filename"
-          fi
-        done
-        
-        echo "has_changes=$hasChanges" >> $GITHUB_OUTPUT
-    
-    - name: Install ImageMagick for comparison
-      run: sudo apt-get update && sudo apt-get install -y imagemagick
+
+    - name: Run Playwright visual regression tests
+      run: npx playwright test
     
     - name: Generate HTML report
       if: always()
