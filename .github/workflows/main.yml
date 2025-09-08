@@ -39,7 +39,7 @@ jobs:
       run: |
         npx playwright screenshot \
           --browser=chromium \
-          --viewport-size=1920,1080 \
+          --viewport-size=1440,960 \
           --full-page \
           "file://$PWD/index.html" \
           "snapshots/current/current.png"
@@ -115,17 +115,16 @@ jobs:
           </div>
         </body></html>
         EOF
-      
-      # - name: Display manual run summary
-      #   if: github.event_name == 'workflow_dispatch'
-      #   run: |
-      #     echo "## Manual Snapshot Test Summary"
-      #     echo "- Triggered by: ${{ github.actor }}"
-      #     echo "- Viewport size: ${{ env.VIEWPORT_SIZE }}"
-      #     echo "- Update references: ${{ github.event.inputs.update_references }}"
-      #     echo "- Target files: ${{ github.event.inputs.target_files || 'All HTML files' }}"
-      #     echo "- Has changes: ${{ steps.compare.outputs.has_changes }}"
-      
+    
+    - name: Display manual run summary
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        echo "## Manual Snapshot Test Summary"
+        echo "- Triggered by: ${{ github.actor }}"
+        echo "- Update references: ${{ github.event.inputs.update_references }}"
+        echo "- Target files: ${{ github.event.inputs.target_files || 'index.html' }}"
+        echo "- Has changes: ${{ steps.compare.outputs.has_changes }}"
+    
     - name: Upload snapshots as artifacts
       uses: actions/upload-artifact@v4
       if: always()
@@ -133,3 +132,9 @@ jobs:
         name: snapshot-test-results
         path: snapshots/
         retention-days: 30
+
+    - name: Fail if visual changes detected
+      if: steps.compare.outputs.has_changes == 'true'
+      run: |
+        echo "Visual changes detected! Please review the diff image in the report."
+        exit 1
