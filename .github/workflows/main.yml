@@ -38,22 +38,12 @@ jobs:
 
     - name: Compare with reference.png using pixelmatch
       run: |
-        node --input-type=module -e '
-        import fs from "fs";
-        import pixelmatch from "pixelmatch";
-        import { PNG } from "pngjs";
-        const img1 = PNG.sync.read(fs.readFileSync(".github/snapshots/reference.png"));
-        const img2 = PNG.sync.read(fs.readFileSync("snapshots/current/current.png"));
-        const { width, height } = img1;
-        const diff = new PNG({ width, height });
-        const mismatches = pixelmatch(img1.data, img2.data, diff.data, width, height, { threshold: 0.1 });
-        fs.writeFileSync("snapshots/diff/diff.png", PNG.sync.write(diff));
-        const totalPixels = width * height;
-        const percentMatch = 1 - mismatches / totalPixels;
-        const hasChanges = percentMatch < 0.8; // true if less than 80% match
-        fs.writeFileSync("snapshots/has_changes.txt", hasChanges ? "true" : "false");
-        console.log(`Pixelmatch: ${mismatches} mismatches, match: ${(percentMatch*100).toFixed(2)}%`);
-        '
+        node compare-images.js \
+          ".github/snapshots/reference.png" \
+          "snapshots/current/current.png" \
+          "snapshots/diff/diff.png" \
+          0.1 \
+          0.8
 
     - name: Set has_changes output
       id: compare
@@ -109,16 +99,7 @@ jobs:
           </div>
         </body></html>
         EOF
-    
-    - name: Display manual run summary
-      if: github.event_name == 'workflow_dispatch'
-      run: |
-        echo "## Manual Snapshot Test Summary"
-        echo "- Triggered by: ${{ github.actor }}"
-        echo "- Update references: ${{ github.event.inputs.update_references }}"
-        echo "- Target files: ${{ github.event.inputs.target_files || 'index.html' }}"
-        echo "- Has changes: ${{ steps.compare.outputs.has_changes }}"
-    
+
     - name: Upload snapshots as artifacts
       uses: actions/upload-artifact@v4
       if: always()
