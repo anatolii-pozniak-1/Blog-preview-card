@@ -173,6 +173,16 @@ jobs:
         
         echo "        </body></html>" >> snapshots/report.html
     
+    - name: Display manual run summary
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        echo "## Manual Snapshot Test Summary"
+        echo "- Triggered by: ${{ github.actor }}"
+        echo "- Viewport size: ${{ env.VIEWPORT_SIZE }}"
+        echo "- Update references: ${{ github.event.inputs.update_references }}"
+        echo "- Target files: ${{ github.event.inputs.target_files || 'All HTML files' }}"
+        echo "- Has changes: ${{ steps.compare.outputs.has_changes }}"
+    
     - name: Upload snapshots as artifacts
       uses: actions/upload-artifact@v4
       if: always()
